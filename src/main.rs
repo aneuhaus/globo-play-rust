@@ -22,86 +22,141 @@ use std::path::PathBuf;
 ///
 /// # Returns
 /// Option containing the URL of the selected source, or None if no sources available
-fn select_best_stream(sources: &[Source], quality_preference: &str) -> Option<String> {
+fn select_best_stream(sources: &[Source], quality_preference: &str, cli_quality_arg: Option<&str>) -> Option<Source> {
     if sources.is_empty() {
         return None;
     }
 
-    // Special cases first
-    if quality_preference == "max" || quality_preference == "high" {
-        // Try to find the highest quality by parsing resolution
-        return find_highest_quality_source(sources).map(|s| s.url.clone());
-    } else if quality_preference == "min" || quality_preference == "low" {
-        // Try to find the lowest quality by parsing resolution
-        return find_lowest_quality_source(sources).map(|s| s.url.clone());
-    } 
-    
-    // Try to match the exact quality
-    let exact_match = sources.iter().find(|s| s.label.contains(quality_preference));
-    if let Some(source) = exact_match {
-        return Some(source.url.clone());
+    // Attempt 1: Exact match on label based on quality_preference (e.g., "1080p")
+    let exact_match = sources.iter().find(|s| {
+        s.label.as_ref().map_or(false, |lbl| !lbl.is_empty() && lbl.contains(quality_preference))
+    });
+    if exact_match.is_some() {
+        return exact_match.cloned();
     }
-    
-    // If no exact match, default to highest quality
-    find_highest_quality_source(sources).map(|s| s.url.clone())
+
+    // Attempt 2: If CLI quality is "high" or "low", use dedicated functions
+    if let Some(cli_quality) = cli_quality_arg {
+        if cli_quality == "high" {
+            return find_highest_quality_source(sources, true);
+        } else if cli_quality == "low" {
+            return find_lowest_quality_source(sources, true);
+        }
+    } 
+
+    // Attempt 3: Default to primary source or first source
+    let primary_source = sources.iter().find(|s| 
+        s.source_type.as_str() == "primary" || 
+        s.type_.as_str() == "primary"
+    );
+
+    primary_source.cloned().or_else(|| sources.first().cloned())
 }
 
 /// Finds the highest quality source from a list of sources
 /// 
-/// Attempts to parse resolution values like "1080p", "720p", etc.
-fn find_highest_quality_source(sources: &[Source]) -> Option<&Source> {
-    if sources.is_empty() {
-        return None;
-    }
-    
-    // First try: find the source with the highest numeric value before 'p'
-    let mut highest_res = 0;
-    let mut best_source = sources.first();
+/// Attempts to parse resolution values like "1080p", "720p", etc. or uses metadata
+fn find_highest_quality_source(sources: &[Source], prefer_primary: bool) -> Option<Source> {
+    let mut best_source: Option<Source> = None;
+    let mut max_resolution: u32 = 0;
 
-    for source in sources {
-        if let Some(res) = extract_resolution(&source.label) {
-            if res > highest_res {
-                highest_res = res;
-                best_source = Some(source);
+    let filtered_sources = sources.iter().filter(|s| {
+        if prefer_primary {
+            // Prefer "source_type" if available, otherwise fallback to "type"
+            s.source_type.as_str() == "primary" || s.type_.as_str() == "primary"
+        } else {
+            true // Consider all sources if not preferring primary
+        }
+    });
+
+    for source in filtered_sources {
+        let mut current_resolution: Option<u32> = None;
+
+        if let Some(label_str) = source.label.as_deref() {
+            if !label_str.is_empty() {
+                if let Some(res) = extract_resolution(label_str) {
+                    current_resolution = Some(res);
+                }
+            }
+        }
+
+        if current_resolution.is_none() {
+            if let Some(res) = extract_resolution_from_url(&source.url) {
+                current_resolution = Some(res);
+            }
+        }
+
+        if current_resolution.is_none() {
+            if let Some(asset_key_str) = source.asset_key.as_deref() {
+                 if !asset_key_str.is_empty() {
+                    if let Some(res) = extract_resolution(asset_key_str) { // asset_key can also contain resolution info
+                        current_resolution = Some(res);
+                    }
+                }
+            }
+        }
+
+        if let Some(resolution) = current_resolution {
+            if resolution > max_resolution {
+                max_resolution = resolution;
+                best_source = Some(source.clone());
             }
         }
     }
 
-    // If we found a valid resolution, return that source
-    if highest_res > 0 {
-        return best_source;
-    }
-    
-    // Fallback: just return the first source
-    sources.first()
+    best_source
 }
 
 /// Finds the lowest quality source from a list of sources
-fn find_lowest_quality_source(sources: &[Source]) -> Option<&Source> {
-    if sources.is_empty() {
-        return None;
-    }
-    
-    // Find the source with the lowest numeric value before 'p'
-    let mut lowest_res = u32::MAX;
-    let mut best_source = sources.last();
+fn find_lowest_quality_source(sources: &[Source], prefer_primary: bool) -> Option<Source> {
+    let mut worst_source: Option<Source> = None;
+    let mut min_resolution: u32 = u32::MAX;
 
-    for source in sources {
-        if let Some(res) = extract_resolution(&source.label) {
-            if res < lowest_res {
-                lowest_res = res;
-                best_source = Some(source);
+    let filtered_sources = sources.iter().filter(|s| {
+        if prefer_primary {
+            // Prefer "source_type" if available, otherwise fallback to "type"
+            s.source_type.as_str() == "primary" || s.type_.as_str() == "primary"
+        } else {
+            true // Consider all sources if not preferring primary
+        }
+    });
+
+    for source in filtered_sources {
+        let mut current_resolution: Option<u32> = None;
+
+        if let Some(label_str) = source.label.as_deref() {
+            if !label_str.is_empty() {
+                if let Some(res) = extract_resolution(label_str) {
+                    current_resolution = Some(res);
+                }
+            }
+        }
+        
+        if current_resolution.is_none() {
+            if let Some(res) = extract_resolution_from_url(&source.url) {
+                current_resolution = Some(res);
+            }
+        }
+
+        if current_resolution.is_none() {
+            if let Some(asset_key_str) = source.asset_key.as_deref() {
+                if !asset_key_str.is_empty() {
+                    if let Some(res) = extract_resolution(asset_key_str) { // asset_key can also contain resolution info
+                        current_resolution = Some(res);
+                    }
+                }
+            }
+        }
+
+        if let Some(resolution) = current_resolution {
+            if resolution < min_resolution {
+                min_resolution = resolution;
+                worst_source = Some(source.clone());
             }
         }
     }
 
-    // If we found a valid resolution, return that source
-    if lowest_res < u32::MAX {
-        return best_source;
-    }
-    
-    // Fallback: just return the last source
-    sources.last()
+    worst_source
 }
 
 /// Extracts resolution value from labels like "720p", "1080p HD", etc.
@@ -111,6 +166,33 @@ fn extract_resolution(label: &str) -> Option<u32> {
     re.captures(label)
         .and_then(|caps| caps.get(1))
         .and_then(|res| res.as_str().parse::<u32>().ok())
+}
+
+/// Extracts resolution value from URLs containing resolution information
+/// 
+/// For example: urls containing "r360_1080" would extract 1080
+fn extract_resolution_from_url(url: &str) -> Option<u32> {
+    // Look for common resolution patterns in URLs
+    let res_patterns = [
+        // r360_1080 pattern
+        regex::Regex::new(r"r\d+_(\d+)").ok()?,
+        // direct resolution like 1080p or 720p
+        regex::Regex::new(r"(\d+)p").ok()?,
+        // Any sequence of 3-4 digits that might represent resolution
+        regex::Regex::new(r"/(\d{3,4})(/|_|\.)").ok()?
+    ];
+    
+    for pattern in &res_patterns {
+        if let Some(caps) = pattern.captures(url) {
+            if let Some(res_match) = caps.get(1) {
+                if let Ok(res) = res_match.as_str().parse::<u32>() {
+                    return Some(res);
+                }
+            }
+        }
+    }
+    
+    None
 }
 
 /// Sanitizes a string to be used as a valid filename
@@ -164,24 +246,26 @@ async fn handle_video_command(
             } else {
                 // Compact output for basic video info
                 if let Some(resource) = &session.resource {
-                     println!("Title: {}", resource.name);
-                     println!("ID: {}", resource.id);
+                     println!("Title: {}", resource.name.as_deref().unwrap_or("N/A"));
+                     println!("ID: {}", resource.id.as_deref().unwrap_or("N/A"));
                 } else {
                     println!("Video ID: {}", video_id); // Fallback if resource details are not in session
                 }
                 println!("Available Streams:");
                 for source in &session.sources {
-                    println!("  - Label: {}, URL: {}", source.label, source.url);
+                    println!("  - Label: {}, URL: {}", source.label.as_deref().unwrap_or("N/A"), source.url);
                 }
             }
 
             if download {
                 let quality_pref = quality_override.as_ref().unwrap_or(&config.video_quality);
-                if let Some(stream_url) = select_best_stream(&session.sources, quality_pref) {
+                // Pass the cli_quality_arg to select_best_stream
+                let cli_quality_arg = quality_override.as_deref(); 
+                if let Some(stream_source) = select_best_stream(&session.sources, quality_pref, cli_quality_arg) {
                     let filename = custom_filename.unwrap_or_else(|| {
                         let title = session.resource.as_ref().map_or_else(
                             || video_id.clone(),
-                            |r| sanitize_filename(&r.name),
+                            |r| sanitize_filename(r.name.as_deref().unwrap_or(&video_id)),
                         );
                         format!("{}.mp4", title) // Assuming mp4, might need to check source type
                     });
@@ -194,10 +278,10 @@ async fn handle_video_command(
 
                     println!(
                         "Downloading video from {} to {}",
-                        stream_url,
+                        stream_source.url, // Use stream_source.url instead of stream_source
                         download_path.display()
                     );
-                    utils::download_file(&config.http_client, &stream_url, &download_path).await?;
+                    utils::download_file(&config.http_client, &stream_source.url, &download_path).await?; // Use &stream_source.url
                     println!("Download complete: {}", download_path.display());
                 } else {
                     eprintln!("Could not find a suitable stream to download for quality preference: {}", quality_pref);

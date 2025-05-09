@@ -27,21 +27,37 @@ pub struct VideoResource {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Source {
-    pub label: String, // e.g., "720p", "1080p"
+    #[serde(rename = "type")]
+    pub type_: String, // "primary", "fallback"
     pub url: String,
+    #[serde(default)]
+    pub label: Option<String>, // Changed from String to Option<String>
+    #[serde(default, alias = "sourceType")]
+    pub source_type: String, 
+    pub cdn: Option<String>, // CDN provider
+    pub token: Option<String>, // Authentication token
+    pub pop: Option<String>, // Point of presence
+    pub asset_key: Option<String>, // Asset key
+    pub expiration_time: Option<u64>, // Expiration timestamp
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VideoSession {
+    #[serde(default)]
     pub session: String, // The actual session ID or key
     pub sources: Vec<Source>,
     pub resource: Option<VideoResourceDetails>, // Sometimes the resource details are nested
+    pub metadata: Option<VideoMetadata>, // Metadata about the video
+    pub thumbs_preview_base_url: Option<String>, // Preview thumbnails URL
+    pub thumbs_url: Option<String> // Thumbnails URL
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VideoResourceDetails {
-    pub id: String,
-    pub name: String,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
     // Potentially other details about the resource itself
 }
 
@@ -68,6 +84,28 @@ pub struct DatedVideoItem {
     pub resource_id: Option<String>,
     pub video_url: Option<String>, // URL to the video page, not the stream itself
     // ... and so on
+}
+
+/// Comprehensive metadata about a video from the session API response
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct VideoMetadata {
+    pub id: u64,
+    pub title: String,
+    pub description: Option<String>,
+    pub type_: Option<String>,
+    #[serde(rename = "type")]
+    pub video_type: String,
+    pub duration: Option<u64>,
+    pub program: Option<String>,
+    pub program_id: Option<u64>,
+    pub channel: Option<String>,
+    pub channel_id: Option<u64>,
+    pub category: Option<String>,
+    pub created_at: Option<String>,
+    pub exhibited_at: Option<String>,
+    pub url_for_consumption: Option<String>,
+    pub codec: Option<String>,
+    pub max_height: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
