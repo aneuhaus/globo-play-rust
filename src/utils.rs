@@ -2,8 +2,6 @@
 
 use anyhow::{Context, Result};
 use reqwest::Client;
-use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
@@ -26,15 +24,14 @@ pub async fn download_file(client: &Client, url: &str, path: &Path) -> Result<()
         .await
         .context(format!("Failed to create file at {}", path.display()))?;
 
-    let mut stream = response.bytes_stream();
-
-    while let Some(item) = futures_util::StreamExt::next(&mut stream).await {
-        let chunk = item.context("Error while downloading file chunk")?;
-        dest_file
-            .write_all(&chunk)
-            .await
-            .context(format!("Error writing to file {}", path.display()))?;
-    }
+    // Read the entire response body
+    let bytes = response.bytes().await.context("Failed to read response bytes")?;
+    
+    // Write the bytes to the file
+    dest_file
+        .write_all(&bytes)
+        .await
+        .context(format!("Error writing to file {}", path.display()))?;
 
     println!("Successfully downloaded {} to {}", url, path.display());
     Ok(())

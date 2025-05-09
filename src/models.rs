@@ -1,7 +1,7 @@
 // src/models.rs
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Video {
     pub id: String,
     pub title: String,
@@ -14,7 +14,7 @@ pub struct Video {
     // Add other fields as discovered from API responses
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VideoResource {
     pub id: String,
     pub name: String,
@@ -25,20 +25,20 @@ pub struct VideoResource {
     // Add other fields as discovered
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Source {
     pub label: String, // e.g., "720p", "1080p"
     pub url: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VideoSession {
     pub session: String, // The actual session ID or key
     pub sources: Vec<Source>,
     pub resource: Option<VideoResourceDetails>, // Sometimes the resource details are nested
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VideoResourceDetails {
     pub id: String,
     pub name: String,
@@ -46,7 +46,7 @@ pub struct VideoResourceDetails {
 }
 
 // Model for a list of videos, as returned by date search or similar endpoints
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VideoItems {
     pub items: Vec<Video>,
     // Potentially pagination fields like next_page_token, has_next_page, etc.
@@ -54,7 +54,7 @@ pub struct VideoItems {
 
 // You might need more specific structs depending on the exact API responses.
 // For example, if the /videos/by/date endpoint has a different structure:
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatedVideoItem {
     // Fields specific to the dated video list item
     pub id: String,
@@ -70,7 +70,7 @@ pub struct DatedVideoItem {
     // ... and so on
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatedVideosResponse {
     pub items: Vec<DatedVideoItem>,
     pub count: Option<u32>,
@@ -79,7 +79,7 @@ pub struct DatedVideosResponse {
 }
 
 // Error structure for API responses
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ApiErrorResponse {
     pub message: String,
     pub code: Option<String>,
