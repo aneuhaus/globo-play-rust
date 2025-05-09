@@ -1,4 +1,3 @@
-\
 [package]
 name = "globo_play_rust"
 version = "0.1.0"
@@ -8,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "cookies"] }
+reqwest = { version = "0.11", features = ["json", "cookies", "stream"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.0", features = ["derive"] }
@@ -18,3 +17,5 @@ uuid = { version = "1", features = ["v4", "serde"] } # For generating VSID like 
 chrono = "0.4" # For date handling
 shellexpand = "3.0" # For expanding ~ in paths
 urlencoding = "2.1.0" # For URL encoding parameters
+futures-util = "0.3" # For Stream utilities like StreamExt
+regex = "1.10.2" # For parsing resolution values from quality labels
