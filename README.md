@@ -149,7 +149,9 @@ Lists videos for a specific program (title ID) within a given date range.
 
 ### Cookie File
 
-For accessing content that requires authentication, you need to provide a cookie file. This file should be in the Netscape cookie format. You can typically obtain this by:
+For accessing content that requires authentication, you need to provide a cookie file. This file should be in the <abbr title="A Netscape-format cookie file is a plain text file that stores cookies, typically used by browsers or tools like curl. Each line represents a cookie, with tab-separated fields like domain, path, secure, expiration, name, and value. This tool uses it to make authenticated requests to the Globo Play API.">Netscape cookie format</abbr>.
+
+You can typically obtain this by:
 1.  Logging into Globo Play in your web browser.
 2.  Using a browser extension (e.g., "Get cookies.txt" for Chrome/Firefox) to export the cookies for the `globo.com` domain.
 3.  Save the exported content into a plain text file.
@@ -185,4 +187,4 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 ## License
 
-(Specify your license here, e.g., MIT, Apache 2.0)
+This project is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for details.
