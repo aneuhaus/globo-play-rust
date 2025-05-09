@@ -1,4 +1,3 @@
-\
 // src/main.rs
 
 mod api;
@@ -6,47 +5,123 @@ mod cli;
 mod config;
 mod models;
 mod utils;
+mod constants;
 
 use anyhow::{Context, Result};
-use chrono::Datelike;
 use clap::Parser;
 use cli::{Cli, Commands};
 use config::AppConfig;
-use models::{DatedVideoItem, Source, VideoSession};
+use models::Source;
 use std::path::PathBuf;
 
+/// Selects the best stream source based on the specified quality preference.
+/// 
+/// # Arguments
+/// * `sources` - A slice of available video sources
+/// * `quality_preference` - Quality preference ("max", "min", or specific quality like "720p")
+///
+/// # Returns
+/// Option containing the URL of the selected source, or None if no sources available
 fn select_best_stream(sources: &[Source], quality_preference: &str) -> Option<String> {
-    // Simple quality selection logic, can be expanded
-    // Assumes labels like "1080p", "720p", "480p", etc. or "max", "min"
-    // For now, let's prioritize based on a predefined order or "max"
     if sources.is_empty() {
         return None;
     }
 
-    let mut best_source: Option<&Source> = None;
-
-    if quality_preference == "max" {
-        // A simple way to get "max" could be to find the one with "p" and highest number
-        // or just the first one if they are ordered by quality (often they are)
-        best_source = sources.first(); // Assuming API returns them in some order
-                                       // A more robust way would be to parse "1080p", "720p" etc.
-    } else if quality_preference == "min" {
-        best_source = sources.last();
-    } else {
-        for source in sources {
-            if source.label.contains(quality_preference) {
-                best_source = Some(source);
-                break;
-            }
-        }
-        // If specific quality not found, fallback to "max" or first available
-        if best_source.is_none() {
-            best_source = sources.first();
-        }
+    // Special cases first
+    if quality_preference == "max" || quality_preference == "high" {
+        // Try to find the highest quality by parsing resolution
+        return find_highest_quality_source(sources).map(|s| s.url.clone());
+    } else if quality_preference == "min" || quality_preference == "low" {
+        // Try to find the lowest quality by parsing resolution
+        return find_lowest_quality_source(sources).map(|s| s.url.clone());
+    } 
+    
+    // Try to match the exact quality
+    let exact_match = sources.iter().find(|s| s.label.contains(quality_preference));
+    if let Some(source) = exact_match {
+        return Some(source.url.clone());
     }
-    best_source.map(|s| s.url.clone())
+    
+    // If no exact match, default to highest quality
+    find_highest_quality_source(sources).map(|s| s.url.clone())
 }
 
+/// Finds the highest quality source from a list of sources
+/// 
+/// Attempts to parse resolution values like "1080p", "720p", etc.
+fn find_highest_quality_source(sources: &[Source]) -> Option<&Source> {
+    if sources.is_empty() {
+        return None;
+    }
+    
+    // First try: find the source with the highest numeric value before 'p'
+    let mut highest_res = 0;
+    let mut best_source = sources.first();
+
+    for source in sources {
+        if let Some(res) = extract_resolution(&source.label) {
+            if res > highest_res {
+                highest_res = res;
+                best_source = Some(source);
+            }
+        }
+    }
+
+    // If we found a valid resolution, return that source
+    if highest_res > 0 {
+        return best_source;
+    }
+    
+    // Fallback: just return the first source
+    sources.first()
+}
+
+/// Finds the lowest quality source from a list of sources
+fn find_lowest_quality_source(sources: &[Source]) -> Option<&Source> {
+    if sources.is_empty() {
+        return None;
+    }
+    
+    // Find the source with the lowest numeric value before 'p'
+    let mut lowest_res = u32::MAX;
+    let mut best_source = sources.last();
+
+    for source in sources {
+        if let Some(res) = extract_resolution(&source.label) {
+            if res < lowest_res {
+                lowest_res = res;
+                best_source = Some(source);
+            }
+        }
+    }
+
+    // If we found a valid resolution, return that source
+    if lowest_res < u32::MAX {
+        return best_source;
+    }
+    
+    // Fallback: just return the last source
+    sources.last()
+}
+
+/// Extracts resolution value from labels like "720p", "1080p HD", etc.
+fn extract_resolution(label: &str) -> Option<u32> {
+    // Find digits followed by 'p'
+    let re = regex::Regex::new(r"(\d+)p").ok()?;
+    re.captures(label)
+        .and_then(|caps| caps.get(1))
+        .and_then(|res| res.as_str().parse::<u32>().ok())
+}
+
+/// Sanitizes a string to be used as a valid filename
+///
+/// Removes special characters and replaces spaces with underscores
+///
+/// # Arguments
+/// * `name` - The string to sanitize
+///
+/// # Returns
+/// A sanitized string suitable for use as a filename
 fn sanitize_filename(name: &str) -> String {
     name.chars()
         .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
@@ -54,6 +129,19 @@ fn sanitize_filename(name: &str) -> String {
         .replace(' ', "_")
 }
 
+/// Handles the video command, fetching video information and optionally downloading the video
+///
+/// # Arguments
+/// * `video_id` - The ID of the video to fetch
+/// * `download` - Whether to download the video
+/// * `custom_filename` - Optional custom filename for the downloaded video
+/// * `quality_override` - Optional quality override for the video
+/// * `output_dir_override` - Optional output directory for the downloaded video
+/// * `config` - The application configuration
+/// * `fetch_full_info` - Whether to fetch full video info (true) or basic info (false)
+///
+/// # Returns
+/// Result indicating success or error
 async fn handle_video_command(
     video_id: String,
     download: bool,
@@ -124,6 +212,17 @@ async fn handle_video_command(
     Ok(())
 }
 
+/// Handles fetching videos by date and optionally downloading all videos in the result
+///
+/// # Arguments
+/// * `title_id` - The ID of the title/program to fetch videos for
+/// * `from_date_opt` - Optional start date (format: YYYY-MM-DD)
+/// * `to_date_opt` - Optional end date (format: YYYY-MM-DD)
+/// * `download_all` - Whether to download all videos in the result
+/// * `config` - The application configuration
+///
+/// # Returns
+/// Result indicating success or error
 async fn handle_videos_by_date_command(
     title_id: String,
     from_date_opt: Option<String>,
@@ -198,14 +297,20 @@ async fn handle_videos_by_date_command(
     Ok(())
 }
 
+/// Main entry point for the application
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Display welcome banner
+    let version = env!("CARGO_PKG_VERSION");
+    println!("Globo Play Rust v{} - Command-line utility", version);
+    println!("----------------------------------------");
+
     let cli = Cli::parse();
     let config = AppConfig::from_cli(&cli).await.context("Failed to load application configuration")?;
 
     if config.debug_mode {
-        println!("CLI args: {:?}", cli);
-        println!("AppConfig: {:?}", config);
+        println!("DEBUG: CLI args: {:?}", cli);
+        println!("DEBUG: AppConfig: {:?}", config);
     }
 
     match cli.command {
@@ -236,12 +341,21 @@ async fn main() -> Result<()> {
             handle_videos_by_date_command(title_id, from_date, to_date, download_all, &config).await?
         }
         None => {
-            // No subcommand was given.
-            // clap will show help if no args are given or if --help is used.
-            // If we want specific behavior when the app is run without subcommands, add it here.
-            println!("No command provided. Use --help for options.");
-            // For example, print version or a short usage message.
-            // Cli::command().print_help()?; // This requires CommandFactory from clap
+            // No subcommand was given
+            println!("No command provided. Here are some examples to get you started:");
+            println!();
+            println!("  # Get information about a specific video:");
+            println!("  globo_play_rust video VIDEO_ID");
+            println!();
+            println!("  # Download a specific video with highest quality:");
+            println!("  globo_play_rust video VIDEO_ID --download");
+            println!();
+            println!("  # Get videos by date range for a specific title/program:");
+            println!("  globo_play_rust videos-by-date TITLE_ID --from-date 2023-01-01 --to-date 2023-01-31");
+            println!();
+            println!("For more options, use --help:");
+            println!("  globo_play_rust --help");
+            println!("  globo_play_rust video --help");
         }
     }
 
