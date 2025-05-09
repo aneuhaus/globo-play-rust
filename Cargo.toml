@@ -1,0 +1,20 @@
+\
+[package]
+name = "globo_play_rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json", "cookies"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+thiserror = "1.0" # For error handling
+anyhow = "1.0" # For general error handling, often used with thiserror
+uuid = { version = "1", features = ["v4", "serde"] } # For generating VSID like in the scripts
+chrono = "0.4" # For date handling
+shellexpand = "3.0" # For expanding ~ in paths
+urlencoding = "2.1.0" # For URL encoding parameters
