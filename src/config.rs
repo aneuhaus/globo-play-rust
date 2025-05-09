@@ -7,6 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct ConfigFile {
     pub cookie_file: Option<String>,
     pub default_quality: Option<String>,
@@ -16,6 +17,7 @@ pub struct ConfigFile {
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
+    #[allow(dead_code)]
     pub cookie_file_path: Option<PathBuf>,
     pub video_quality: String,
     pub output_format: String,
@@ -43,7 +45,25 @@ impl AppConfig {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static("globo-play-rust/0.1.0"),
+            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"),
+        );
+        
+        // Add additional headers found in marine-traffic scripts
+        headers.insert(
+            reqwest::header::ORIGIN,
+            reqwest::header::HeaderValue::from_static("https://globoplay.globo.com"),
+        );
+        headers.insert(
+            reqwest::header::REFERER,
+            reqwest::header::HeaderValue::from_static("https://globoplay.globo.com/"),
+        );
+        headers.insert(
+            "x-platform-id",
+            reqwest::header::HeaderValue::from_static("web"),
+        );
+        headers.insert(
+            "x-device-id",
+            reqwest::header::HeaderValue::from_static("desktop"),
         );
 
         let cookie_store = reqwest::cookie::Jar::default();
@@ -60,7 +80,7 @@ impl AppConfig {
                         // This is a simplified parser. A more robust one might be needed.
                         let domain = parts[0];
                         // let _flag = parts[1]; // TRUE/FALSE - path accessible from all paths
-                        let path_str = parts[2];
+                        let _path_str = parts[2];
                         // let _secure = parts[3]; // TRUE/FALSE
                         // let _expiration = parts[4];
                         let name = parts[5];
